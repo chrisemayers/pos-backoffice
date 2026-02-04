@@ -163,17 +163,66 @@ const form = useForm({ resolver: zodResolver(schema) });
 - Session tokens stored in HTTP-only cookies (for SSR)
 - Auth state synchronized via `onAuthStateChanged`
 
-### Authorization
+### Role-Based Access Control (RBAC)
+
+The system implements a granular permission system with 16 permissions across 6 categories:
 
 ```typescript
-// Roles and permissions
+// User roles
 type Role = 'admin' | 'manager' | 'cashier';
 
-const permissions: Record<Role, string[]> = {
-  admin: ['*'],  // All permissions
-  manager: ['read:*', 'write:inventory', 'write:settings'],
-  cashier: ['read:products', 'read:sales'],
+// Permission categories
+const PERMISSIONS = {
+  // Inventory
+  INVENTORY_VIEW: "inventory:view",
+  INVENTORY_CREATE: "inventory:create",
+  INVENTORY_EDIT: "inventory:edit",
+  INVENTORY_DELETE: "inventory:delete",
+
+  // Sales
+  SALES_VIEW: "sales:view",
+  SALES_VOID: "sales:void",
+  SALES_REFUND: "sales:refund",
+
+  // Reports
+  REPORTS_VIEW: "reports:view",
+  REPORTS_EXPORT: "reports:export",
+
+  // Settings
+  SETTINGS_VIEW: "settings:view",
+  SETTINGS_EDIT: "settings:edit",
+
+  // Users
+  USERS_VIEW: "users:view",
+  USERS_CREATE: "users:create",
+  USERS_EDIT: "users:edit",
+  USERS_DELETE: "users:delete",
+
+  // Locations
+  LOCATIONS_VIEW: "locations:view",
+  LOCATIONS_CREATE: "locations:create",
+  LOCATIONS_EDIT: "locations:edit",
+  LOCATIONS_DELETE: "locations:delete",
 };
+```
+
+### Default Role Permissions
+
+| Role | Default Permissions |
+|------|-------------------|
+| **Admin** | All 16 permissions |
+| **Manager** | Inventory (all), Sales (all), Reports (all), Settings (view), Users (view), Locations (view) |
+| **Cashier** | Inventory (view), Sales (view), Reports (view) |
+
+### Permission Checking
+
+```typescript
+// In components, use the useCurrentUser hook
+const { hasPermission, isAdmin } = useCurrentUser();
+const canCreate = hasPermission(PERMISSIONS.INVENTORY_CREATE);
+
+// Conditional rendering based on permissions
+{canCreate && <Button>Add Product</Button>}
 ```
 
 ### Data Isolation
@@ -183,6 +232,78 @@ All Firestore queries are scoped to tenant:
 ```typescript
 // Always include tenant filter
 const productsRef = collection(db, `tenants/${tenantId}/products`);
+```
+
+## Location Management
+
+The system supports multiple store locations, each with its own configuration:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                      LOCATION ARCHITECTURE                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Tenant                                                             │
+│  └── Locations                                                      │
+│      ├── Location 1 (Downtown Store)                               │
+│      │   ├── name, address, timezone, currency                     │
+│      │   └── isActive: true                                        │
+│      ├── Location 2 (Mall Kiosk)                                   │
+│      │   └── ...                                                   │
+│      └── Location 3 (Airport)                                      │
+│          └── isActive: false (deactivated)                         │
+│                                                                     │
+│  Users can be assigned to multiple locations                        │
+│  Default location can be set for receipt headers                    │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Location Model
+
+```typescript
+interface Location {
+  id: string;
+  tenantId: string;
+  name: string;        // "Downtown Store"
+  address: string;     // Full address
+  timezone: string;    // "America/New_York"
+  currency: string;    // "USD"
+  isActive: boolean;   // Soft delete support
+}
+```
+
+## Settings Architecture
+
+Settings are split across three documents for clear ownership:
+
+```
+tenants/{tenantId}/settings/
+├── global     # Managed by Back Office, read by Android app
+├── app        # Managed by Android app, read by Back Office
+└── backoffice # Web-only settings (future)
+```
+
+### Settings Split
+
+| Document | Owner | Contents |
+|----------|-------|----------|
+| **global** | Back Office | Business info, tax, currency, payment methods, defaultLocationId, payment gateway configs |
+| **app** | Android App | Printer settings, receipt sharing preferences |
+| **backoffice** | Back Office | Dashboard layout preferences (future) |
+
+### Settings Flow
+
+```
+┌─────────────────┐         ┌──────────────┐         ┌─────────────────┐
+│   Back Office   │────────►│   Firestore  │◄────────│   Android App   │
+│                 │         │              │         │                 │
+│  Writes:        │         │  global      │         │  Reads:         │
+│  - global       │         │  app         │         │  - global       │
+│                 │         │  backoffice  │         │                 │
+│  Reads:         │         │              │         │  Writes:        │
+│  - app          │         │              │         │  - app          │
+└─────────────────┘         └──────────────┘         └─────────────────┘
 ```
 
 ## Key Patterns

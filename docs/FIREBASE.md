@@ -61,8 +61,18 @@ firestore/
 │       │   └── {saleItemId}
 │       ├── returns/            # Return transactions
 │       │   └── {returnId}
-│       ├── settings/           # App configuration
-│       │   └── main
+│       ├── settings/           # App configuration (split)
+│       │   ├── global          # Business info, tax, payments
+│       │   ├── app             # Printer, receipt sharing
+│       │   └── backoffice      # Web-only settings
+│       ├── users/              # User accounts with RBAC
+│       │   └── {userId}
+│       ├── locations/          # Store locations
+│       │   └── {locationId}
+│       ├── invitations/        # User invitations
+│       │   └── {invitationId}
+│       ├── activity-log/       # Audit trail
+│       │   └── {logId}
 │       └── feedback/           # User feedback
 │           └── {feedbackId}
 ```
@@ -154,6 +164,120 @@ interface ReturnDocument {
     productId: string;
     quantity: number;
   }>;
+}
+```
+
+#### Users Collection
+
+```typescript
+interface UserDocument {
+  id: string;                     // Firebase Auth UID
+  tenantId: string;
+  email: string;
+  displayName: string;
+  role: 'admin' | 'manager' | 'cashier';
+  permissions: string[];          // Explicit permissions array
+  locationIds: string[];          // Assigned location IDs
+  isActive: boolean;              // Soft delete flag
+  lastLogin?: Timestamp;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+```
+
+#### Locations Collection
+
+```typescript
+interface LocationDocument {
+  id: string;
+  tenantId: string;
+  name: string;                   // "Downtown Store"
+  address: string;                // Full address
+  timezone: string;               // "America/New_York"
+  currency: string;               // "USD"
+  isActive: boolean;              // Soft delete flag
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+```
+
+#### Invitations Collection
+
+```typescript
+interface InvitationDocument {
+  id: string;
+  tenantId: string;
+  email: string;
+  role: 'admin' | 'manager' | 'cashier';
+  locationIds: string[];
+  invitedBy: string;              // User ID who created the invitation
+  token: string;                  // Unique invitation token
+  status: 'pending' | 'accepted' | 'expired' | 'revoked';
+  expiresAt: Timestamp;           // 7-day expiration
+  createdAt: Timestamp;
+  acceptedAt?: Timestamp;
+}
+```
+
+#### Settings Collection (Split Architecture)
+
+The settings collection is split across three documents for clear ownership:
+
+```
+tenants/{tenantId}/settings/
+├── global      # Managed by Back Office, read by Android app
+├── app         # Managed by Android app, read-only in Back Office
+└── backoffice  # Web-only settings (future)
+```
+
+**Global Settings** (`settings/global`):
+```typescript
+interface GlobalSettingsDocument {
+  // Business info
+  businessName: string;
+  businessAddress: string;
+  businessWebsite: string;
+  businessPhone: string;
+  showBusinessInfo: boolean;
+
+  // Default location for receipts
+  defaultLocationId?: string;
+
+  // Tax settings
+  taxEnabled: boolean;
+  taxRate: string;               // Percentage as string
+
+  // Currency & payments
+  currencyCode: string;          // "USD", "TTD", etc.
+  acceptedPaymentMethodIds: string[];
+
+  // Inventory
+  stockLevelAlertsEnabled: boolean;
+
+  // Payment gateway configs
+  gpayMerchantName?: string;
+  gpayMerchantId?: string;
+  gpayGateway?: string;
+  gpayGatewayMerchantId?: string;
+  gpayEnvironment?: 'TEST' | 'PRODUCTION';
+  gpayGatewayParamsJson?: string;
+  wipayPublicKey?: string;
+  wipaySecretKey?: string;
+}
+```
+
+**App Settings** (`settings/app`):
+```typescript
+interface AppSettingsDocument {
+  printerEnabled: boolean;
+  receiptSharingEnabled: boolean;
+}
+```
+
+**Backoffice Settings** (`settings/backoffice`):
+```typescript
+interface BackofficeSettingsDocument {
+  dashboardLayout?: string;       // Future: custom layouts
 }
 ```
 
