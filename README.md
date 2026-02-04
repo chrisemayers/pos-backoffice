@@ -8,13 +8,16 @@ Administrative web application for managing POS App operations. Built with Next.
 - **Inventory Management** - Product CRUD, bulk import/export, stock adjustments
 - **Sales History** - Transaction search, void/refund management
 - **Reports** - Sales analytics, top products, category performance, export to PDF/CSV
-- **Settings** - Tax configuration, business info, payment methods
+- **Settings** - Tax configuration, business info, payment methods, default location
+- **Employee Management** - User CRUD with email invitations, role assignment
+- **Role-Based Access Control (RBAC)** - 16 granular permissions across 6 categories
+- **Multi-Location Support** - Manage multiple store locations with timezone/currency settings
+- **Default Location for Receipts** - Configure location info to display on POS receipts
 
 ### Coming Soon
-- Employee Management with role-based access
-- Multi-location support
 - Supplier management and purchase orders
 - Advanced analytics and forecasting
+- Bulk product import from CSV/Excel
 
 ## Tech Stack
 
@@ -89,13 +92,25 @@ src/
 │   ├── inventory/         # Inventory management
 │   ├── sales/             # Sales history
 │   ├── reports/           # Reports and analytics
-│   └── settings/          # App settings
+│   ├── settings/          # App settings
+│   ├── employees/         # Employee management (RBAC)
+│   └── locations/         # Multi-location management
 ├── components/
 │   ├── ui/                # shadcn/ui components
 │   ├── app-sidebar.tsx    # Navigation sidebar
+│   ├── users/             # Employee/user components
+│   ├── locations/         # Location components
 │   └── providers.tsx      # React Query provider
+├── hooks/
+│   ├── use-current-user.ts # Auth & permission checking
+│   ├── use-locations.ts    # Location data hooks
+│   └── use-settings.ts     # Settings data hooks
 ├── lib/
 │   ├── firebase.ts        # Firebase configuration
+│   ├── firestore/         # Firestore data access
+│   │   ├── users.ts       # User queries & RBAC logic
+│   │   ├── locations.ts   # Location queries
+│   │   └── settings.ts    # Settings queries
 │   └── utils.ts           # Utility functions
 └── types/
     └── index.ts           # Shared TypeScript types
@@ -107,11 +122,19 @@ src/
 
 ## Deployment
 
-### Vercel (Recommended)
+See [docs/PRODUCTION.md](docs/PRODUCTION.md) for a comprehensive deployment guide including:
+- Pre-deployment checklist
+- Initial setup (first admin user, tenant configuration)
+- Deployment options (Vercel, Firebase Hosting, Docker)
+- Post-deployment verification
+- Monitoring and troubleshooting
+
+### Quick Start (Vercel)
 
 1. Connect your GitHub repository to Vercel
 2. Add environment variables in Vercel dashboard
 3. Deploy
+4. Create first admin user (see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md))
 
 ### Self-hosted
 
