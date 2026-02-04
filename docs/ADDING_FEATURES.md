@@ -678,21 +678,322 @@ describe('useProducts', () => {
 });
 ```
 
+## Adding Permission-Protected Features
+
+Most features in the Back Office require permission checks. This section shows how to integrate RBAC into your features.
+
+### Understanding Permissions
+
+The system has 16 granular permissions across 6 categories:
+
+| Category | Permissions |
+|----------|-------------|
+| Inventory | `inventory:view`, `inventory:create`, `inventory:edit`, `inventory:delete` |
+| Sales | `sales:view`, `sales:void`, `sales:refund` |
+| Reports | `reports:view`, `reports:export` |
+| Settings | `settings:view`, `settings:edit` |
+| Users | `users:view`, `users:create`, `users:edit`, `users:delete` |
+| Locations | `locations:view`, `locations:create`, `locations:edit`, `locations:delete` |
+
+### Using the useCurrentUser Hook
+
+Import the hook and permissions constant in your components:
+
+```typescript
+'use client';
+
+import { useCurrentUser, PERMISSIONS } from '@/hooks/use-current-user';
+
+export function MyFeatureComponent() {
+  const { user, hasPermission, isAdmin, isLoading } = useCurrentUser();
+
+  // Check specific permissions
+  const canView = hasPermission(PERMISSIONS.INVENTORY_VIEW);
+  const canCreate = hasPermission(PERMISSIONS.INVENTORY_CREATE);
+  const canEdit = hasPermission(PERMISSIONS.INVENTORY_EDIT);
+  const canDelete = hasPermission(PERMISSIONS.INVENTORY_DELETE);
+
+  if (isLoading) return <LoadingSpinner />;
+
+  // Render based on permissions...
+}
+```
+
+### Permission-Protected UI Elements
+
+Conditionally render UI elements based on permissions:
+
+```typescript
+'use client';
+
+import { useCurrentUser, PERMISSIONS } from '@/hooks/use-current-user';
+import { Button } from '@/components/ui/button';
+import { ProductTable } from '@/components/inventory/product-table';
+
+export function InventoryPage() {
+  const { hasPermission } = useCurrentUser();
+
+  const canCreate = hasPermission(PERMISSIONS.INVENTORY_CREATE);
+  const canEdit = hasPermission(PERMISSIONS.INVENTORY_EDIT);
+  const canDelete = hasPermission(PERMISSIONS.INVENTORY_DELETE);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1>Inventory</h1>
+        {/* Only show Add button if user can create */}
+        {canCreate && (
+          <Button onClick={() => setIsCreating(true)}>
+            Add Product
+          </Button>
+        )}
+      </div>
+
+      <ProductTable
+        products={products}
+        /* Pass undefined to hide edit/delete actions */
+        onEdit={canEdit ? handleEdit : undefined}
+        onDelete={canDelete ? handleDelete : undefined}
+      />
+    </div>
+  );
+}
+```
+
+### Permission-Protected Table Actions
+
+Update your table component to handle optional action handlers:
+
+```typescript
+interface ProductTableProps {
+  products: Product[];
+  onEdit?: (product: Product) => void;   // Optional - hidden if undefined
+  onDelete?: (product: Product) => void; // Optional - hidden if undefined
+}
+
+export function ProductTable({ products, onEdit, onDelete }: ProductTableProps) {
+  // Only show actions column if at least one action is available
+  const hasActions = onEdit || onDelete;
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Name</TableHead>
+          <TableHead>Price</TableHead>
+          {hasActions && <TableHead className="w-12"></TableHead>}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {products.map((product) => (
+          <TableRow key={product.id}>
+            <TableCell>{product.name}</TableCell>
+            <TableCell>${product.price.toFixed(2)}</TableCell>
+            {hasActions && (
+              <TableCell>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {onEdit && (
+                      <DropdownMenuItem onClick={() => onEdit(product)}>
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Edit
+                      </DropdownMenuItem>
+                    )}
+                    {onDelete && (
+                      <DropdownMenuItem
+                        onClick={() => onDelete(product)}
+                        className="text-red-600"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </TableCell>
+            )}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+```
+
+### Page-Level Permission Guards
+
+Protect entire pages from unauthorized access:
+
+```typescript
+'use client';
+
+import { useCurrentUser, PERMISSIONS } from '@/hooks/use-current-user';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ShieldX } from 'lucide-react';
+
+export default function SettingsPage() {
+  const { hasPermission, isLoading } = useCurrentUser();
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
+  // Block access if user doesn't have settings:view permission
+  if (!hasPermission(PERMISSIONS.SETTINGS_VIEW)) {
+    return (
+      <Alert variant="destructive">
+        <ShieldX className="h-4 w-4" />
+        <AlertDescription>
+          You don't have permission to view settings.
+          Contact an administrator for access.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  // User has permission - render the page
+  return <SettingsContent />;
+}
+```
+
+### Admin-Only Features
+
+For features that should only be accessible to admins:
+
+```typescript
+const { isAdmin, hasPermission } = useCurrentUser();
+
+// Method 1: Check isAdmin directly
+if (isAdmin) {
+  // Show admin-only feature
+}
+
+// Method 2: Check for specific admin permissions
+if (hasPermission(PERMISSIONS.USERS_CREATE)) {
+  // Show user creation feature (only admins have this by default)
+}
+```
+
+### Complete Example: Location-Scoped Feature
+
+Here's a complete example of a feature that is both permission-protected and location-scoped:
+
+```typescript
+'use client';
+
+import { useState } from 'react';
+import { useCurrentUser, PERMISSIONS } from '@/hooks/use-current-user';
+import { useLocations } from '@/hooks/use-locations';
+import { Button } from '@/components/ui/button';
+import { Plus } from 'lucide-react';
+
+export default function LocationsPage() {
+  const { hasPermission, isLoading: userLoading } = useCurrentUser();
+  const { data: locations = [], isLoading: locationsLoading } = useLocations();
+  const [isCreating, setIsCreating] = useState(false);
+
+  // Permission checks
+  const canView = hasPermission(PERMISSIONS.LOCATIONS_VIEW);
+  const canCreate = hasPermission(PERMISSIONS.LOCATIONS_CREATE);
+  const canEdit = hasPermission(PERMISSIONS.LOCATIONS_EDIT);
+  const canDelete = hasPermission(PERMISSIONS.LOCATIONS_DELETE);
+
+  if (userLoading || locationsLoading) {
+    return <LoadingSpinner />;
+  }
+
+  if (!canView) {
+    return <AccessDenied message="You don't have permission to view locations." />;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Locations</h1>
+          <p className="text-muted-foreground">
+            Manage your store locations
+          </p>
+        </div>
+        {canCreate && (
+          <Button onClick={() => setIsCreating(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Location
+          </Button>
+        )}
+      </div>
+
+      <LocationsTable
+        locations={locations}
+        onEdit={canEdit ? handleEdit : undefined}
+        onDelete={canDelete ? handleDelete : undefined}
+      />
+
+      {isCreating && canCreate && (
+        <LocationFormDialog
+          open={isCreating}
+          onClose={() => setIsCreating(false)}
+        />
+      )}
+    </div>
+  );
+}
+```
+
+### Checklist for Permission-Protected Features
+
+When adding a feature with RBAC:
+
+- [ ] Identify which permission(s) apply to the feature
+- [ ] Use `useCurrentUser` hook to check permissions
+- [ ] Hide create/add buttons if user lacks create permission
+- [ ] Hide edit actions if user lacks edit permission
+- [ ] Hide delete actions if user lacks delete permission
+- [ ] Show access denied message for page-level restrictions
+- [ ] Test with admin, manager, and cashier roles
+- [ ] Verify API calls are also protected (if applicable)
+
+---
+
 ## Checklist for New Features
 
+### Core Implementation
 - [ ] Types defined in `src/types/index.ts`
 - [ ] Firestore queries in `src/lib/firestore/`
 - [ ] React Query hooks in `src/hooks/`
 - [ ] UI components in `src/components/[feature]/`
 - [ ] Page created in `src/app/[feature]/page.tsx`
 - [ ] Navigation added to sidebar
+
+### Permissions (if applicable)
+- [ ] Identify required permissions for the feature
+- [ ] Import `useCurrentUser` and `PERMISSIONS` from `@/hooks/use-current-user`
+- [ ] Add permission checks for view/create/edit/delete actions
+- [ ] Hide UI elements based on permissions
+- [ ] Add access denied fallback for restricted pages
+
+### UI States
 - [ ] Loading states implemented
 - [ ] Error states implemented
 - [ ] Empty states implemented
+- [ ] Access denied state (for permission-protected features)
+
+### Testing
 - [ ] Unit tests written
 - [ ] Component tests written
+- [ ] Tested with admin role
+- [ ] Tested with manager role
+- [ ] Tested with cashier role
+
+### Quality
 - [ ] Responsive design verified
 - [ ] Accessibility checked
+- [ ] No console errors or warnings
 
 ## Related Documents
 

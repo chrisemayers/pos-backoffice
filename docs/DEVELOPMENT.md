@@ -46,6 +46,131 @@ npm run dev
 | `npm run test` | Run unit tests |
 | `npm run test:e2e` | Run end-to-end tests |
 
+## User Management
+
+### Creating the First Admin User
+
+The first admin user must be created manually in Firebase Console:
+
+1. **Create Firebase Auth User**
+   - Go to Firebase Console → Authentication → Users
+   - Click "Add user"
+   - Enter email and password
+   - Note the User UID
+
+2. **Create Firestore User Document**
+   - Go to Firestore → `tenants/{tenantId}/users`
+   - Add document with ID = Firebase User UID
+   - Required fields:
+   ```json
+   {
+     "email": "admin@example.com",
+     "displayName": "Admin User",
+     "role": "admin",
+     "permissions": [],
+     "locationIds": [],
+     "isActive": true,
+     "tenantId": "your-tenant-id",
+     "createdAt": "<server timestamp>",
+     "updatedAt": "<server timestamp>"
+   }
+   ```
+
+3. **Set Custom Claims** (optional, for advanced security)
+   - Use Firebase Admin SDK or Cloud Function to set `tenant_id` claim
+
+### Creating Users via Back Office
+
+Once logged in as an admin, you can create users through the UI:
+
+1. Navigate to **Employees** page
+2. Click **Add Employee**
+3. Fill in the form:
+   - **Email**: User's email address
+   - **Display Name**: Full name
+   - **Role**: admin, manager, or cashier
+   - **Locations**: Assign to one or more locations (optional)
+4. Click **Save**
+
+The user will receive an invitation email with a link to set their password.
+
+### User Roles and Default Permissions
+
+| Role | Default Permissions |
+|------|-------------------|
+| **Admin** | All 16 permissions (full access) |
+| **Manager** | Inventory (all), Sales (all), Reports (all), Settings (view), Users (view), Locations (view) |
+| **Cashier** | Inventory (view), Sales (view), Reports (view) |
+
+### Customizing User Permissions
+
+Admins can grant additional permissions beyond role defaults:
+
+1. Go to **Employees** page
+2. Click on a user
+3. Click **Edit Permissions**
+4. Toggle individual permissions on/off
+5. Click **Save**
+
+### Invitation Flow
+
+1. Admin creates user with email and role
+2. System generates invitation token (7-day expiry)
+3. User receives email with invitation link
+4. User clicks link and sets password
+5. Account is activated and user can sign in
+
+### Deactivating Users
+
+To disable a user without deleting their data:
+
+1. Go to **Employees** page
+2. Click the menu (⋮) on the user row
+3. Select **Deactivate**
+4. Confirm the action
+
+Deactivated users cannot sign in but their data remains for audit purposes.
+
+## Permission Checks in Components
+
+Always check permissions before rendering sensitive UI:
+
+```typescript
+'use client';
+
+import { useCurrentUser, PERMISSIONS } from '@/hooks/use-current-user';
+
+export function InventoryPage() {
+  const { hasPermission } = useCurrentUser();
+
+  const canCreate = hasPermission(PERMISSIONS.INVENTORY_CREATE);
+  const canEdit = hasPermission(PERMISSIONS.INVENTORY_EDIT);
+  const canDelete = hasPermission(PERMISSIONS.INVENTORY_DELETE);
+
+  return (
+    <div>
+      {canCreate && <Button>Add Product</Button>}
+
+      <ProductTable
+        onEdit={canEdit ? handleEdit : undefined}
+        onDelete={canDelete ? handleDelete : undefined}
+      />
+    </div>
+  );
+}
+```
+
+### Testing with Different Roles
+
+To test permission-based behavior:
+
+1. Create test users for each role (admin, manager, cashier)
+2. Sign in as each user to verify:
+   - Correct menu items are visible
+   - Buttons appear/hide based on permissions
+   - API calls are authorized correctly
+3. Use browser dev tools to verify no sensitive data leaks
+
 ## Code Style
 
 ### TypeScript
