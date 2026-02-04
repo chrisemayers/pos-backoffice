@@ -56,20 +56,87 @@ export interface ReturnLineItem {
   quantity: number;
 }
 
-export interface Settings {
-  taxEnabled: boolean;
-  taxRate: string;
+// Split settings architecture:
+// - GlobalSettings: shared settings managed by backoffice, read by both platforms
+// - AppSettings: mobile-only settings (printer, receipt sharing)
+// - BackofficeSettings: web-only settings (future: dashboard preferences)
+
+export interface GlobalSettings {
+  // Business info (backoffice manages, app reads for receipts)
   businessName: string;
   businessAddress: string;
   businessWebsite: string;
   businessPhone: string;
   showBusinessInfo: boolean;
-  receiptSharingEnabled: boolean;
-  stockLevelAlertsEnabled: boolean;
-  acceptedPaymentMethodIds: string[];
-  printerEnabled: boolean;
+  // Default location for receipts (optional - if set, overrides business info on receipts)
+  defaultLocationId?: string;
+  // Tax settings
+  taxEnabled: boolean;
+  taxRate: string;
+  // Currency & payments
   currencyCode: string;
+  acceptedPaymentMethodIds: string[];
+  // Inventory alerts
+  stockLevelAlertsEnabled: boolean;
+  // Google Pay configuration
+  gpayMerchantName?: string;
+  gpayMerchantId?: string;
+  gpayGateway?: string;
+  gpayGatewayMerchantId?: string;
+  gpayEnvironment?: "TEST" | "PRODUCTION" | "";
+  gpayGatewayParamsJson?: string;
+  // WiPay configuration
+  wipayPublicKey?: string;
+  wipaySecretKey?: string;
 }
+
+export interface AppSettings {
+  // Mobile-only settings
+  printerEnabled: boolean;
+  receiptSharingEnabled: boolean;
+}
+
+export interface BackofficeSettings {
+  // Future: dashboard preferences, report defaults, etc.
+  // Placeholder for now
+  dashboardLayout?: string;
+}
+
+// Combined view for components that need all settings
+export interface Settings extends GlobalSettings, AppSettings {}
+
+// Default values
+export const defaultGlobalSettings: GlobalSettings = {
+  businessName: "",
+  businessAddress: "",
+  businessWebsite: "",
+  businessPhone: "",
+  showBusinessInfo: true,
+  defaultLocationId: undefined,
+  taxEnabled: false,
+  taxRate: "0",
+  currencyCode: "USD",
+  acceptedPaymentMethodIds: ["cash", "card"],
+  stockLevelAlertsEnabled: true,
+  // Payment gateway defaults
+  gpayMerchantName: "",
+  gpayMerchantId: "",
+  gpayGateway: "",
+  gpayGatewayMerchantId: "",
+  gpayEnvironment: "",
+  gpayGatewayParamsJson: "",
+  wipayPublicKey: "",
+  wipaySecretKey: "",
+};
+
+export const defaultAppSettings: AppSettings = {
+  printerEnabled: false,
+  receiptSharingEnabled: true,
+};
+
+export const defaultBackofficeSettings: BackofficeSettings = {
+  dashboardLayout: undefined,
+};
 
 export interface User {
   id: string;
@@ -126,4 +193,5 @@ export interface SalesSummary {
   topProducts: TopProduct[];
   dailyRevenue: DailyRevenue[];
   categorySummary: CategorySummary[];
+  byPaymentType: Record<string, number>;
 }

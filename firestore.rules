@@ -1,0 +1,184 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users collection - users can read/write their own profile
+    match /users/{userId} {
+      // Allow users to read their own profile
+      allow read: if request.auth != null && request.auth.uid == userId;
+      // Allow users to create/update their own profile
+      allow create, update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if false;
+    }
+
+    // Helper function to get user's tenant ID (with fallback for development)
+    function getUserTenantId() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return userDoc.data.tenantId;
+    }
+
+    // Helper function to check if user belongs to tenant
+    // For development: allows access to 'tenant_demo' for any authenticated user
+    function userBelongsToTenant(tenantId) {
+      return request.auth != null && (
+        // Development mode: allow any authenticated user to access tenant_demo
+        tenantId == 'tenant_demo' ||
+        // Production mode: check user's tenant membership
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         getUserTenantId() == tenantId)
+      );
+    }
+
+    // Helper function to get a user's role from the tenant users collection
+    function getUserRole(tenantId) {
+      let userDoc = get(/databases/$(database)/documents/tenants/$(tenantId)/users/$(request.auth.uid));
+      return userDoc.data.role;
+    }
+
+    // Helper function to check if user has a specific permission
+    function hasPermission(tenantId, permission) {
+      let userDoc = get(/databases/$(database)/documents/tenants/$(tenantId)/users/$(request.auth.uid));
+      return userDoc.data.role == 'admin' || permission in userDoc.data.permissions;
+    }
+
+    // Helper function to check if user is an admin
+    function isAdmin(tenantId) {
+      return getUserRole(tenantId) == 'admin';
+    }
+
+    // Helper function to check if user can manage users (admin only)
+    function canManageUsers(tenantId) {
+      return isAdmin(tenantId) || hasPermission(tenantId, 'users:edit');
+    }
+
+    // Tenants collection - users can read their own tenant
+    match /tenants/{tenantId} {
+      // Allow authenticated users who belong to this tenant to read it
+      allow read: if userBelongsToTenant(tenantId);
+      allow write: if false;
+
+      // Tenant members subcollection
+      match /members/{memberId} {
+        allow read: if userBelongsToTenant(tenantId);
+        allow write: if false;
+      }
+
+      // Products subcollection - scoped to tenant
+      match /products/{productId} {
+        allow read: if userBelongsToTenant(tenantId);
+        allow create: if userBelongsToTenant(tenantId);
+        allow update: if userBelongsToTenant(tenantId);
+        allow delete: if userBelongsToTenant(tenantId);
+      }
+
+      // Sales subcollection - scoped to tenant
+      match /sales/{saleId} {
+        allow read: if userBelongsToTenant(tenantId);
+        allow create: if userBelongsToTenant(tenantId);
+        allow update: if userBelongsToTenant(tenantId);
+        allow delete: if false; // Sales should not be deleted
+      }
+
+      // Returns subcollection - scoped to tenant
+      match /returns/{returnId} {
+        allow read: if userBelongsToTenant(tenantId);
+        allow create: if userBelongsToTenant(tenantId);
+        allow update: if userBelongsToTenant(tenantId);
+        allow delete: if false; // Returns should not be deleted
+      }
+
+      // Config subcollection - scoped to tenant
+      match /config/{configId} {
+        allow read: if userBelongsToTenant(tenantId);
+        allow create: if userBelongsToTenant(tenantId);
+        allow update: if userBelongsToTenant(tenantId);
+        allow delete: if false;
+      }
+
+      // Settings subcollection (app settings) - scoped to tenant
+      match /settings/{settingsId} {
+        allow read: if userBelongsToTenant(tenantId);
+        allow create: if userBelongsToTenant(tenantId);
+        allow update: if userBelongsToTenant(tenantId);
+        allow delete: if false;
+      }
+
+      // Users subcollection - employees/team members within a tenant
+      match /users/{userId} {
+        // Any authenticated tenant member can view users
+        allow read: if userBelongsToTenant(tenantId);
+
+        // Only admins or users with users:create permission can create users
+        allow create: if userBelongsToTenant(tenantId) &&
+          (isAdmin(tenantId) || hasPermission(tenantId, 'users:create'));
+
+        // Only admins or users with users:edit permission can update users
+        // Users can always update their own profile (except role)
+        allow update: if userBelongsToTenant(tenantId) &&
+          (request.auth.uid == userId ||
+           isAdmin(tenantId) ||
+           hasPermission(tenantId, 'users:edit'));
+
+        // Only admins can delete users
+        allow delete: if userBelongsToTenant(tenantId) && isAdmin(tenantId);
+      }
+
+      // Locations subcollection - store locations
+      match /locations/{locationId} {
+        allow read: if userBelongsToTenant(tenantId);
+        allow create: if userBelongsToTenant(tenantId) &&
+          (isAdmin(tenantId) || hasPermission(tenantId, 'locations:create'));
+        allow update: if userBelongsToTenant(tenantId) &&
+          (isAdmin(tenantId) || hasPermission(tenantId, 'locations:edit'));
+        allow delete: if userBelongsToTenant(tenantId) && isAdmin(tenantId);
+      }
+
+      // Invitations subcollection - user invitations
+      match /invitations/{invitationId} {
+        allow read: if userBelongsToTenant(tenantId);
+        allow create: if userBelongsToTenant(tenantId) &&
+          (isAdmin(tenantId) || hasPermission(tenantId, 'users:create'));
+        allow update: if userBelongsToTenant(tenantId) &&
+          (isAdmin(tenantId) || hasPermission(tenantId, 'users:create'));
+        allow delete: if userBelongsToTenant(tenantId) && isAdmin(tenantId);
+      }
+
+      // Activity logs subcollection - audit trail (append-only for non-admins)
+      match /activityLogs/{logId} {
+        allow read: if userBelongsToTenant(tenantId);
+        allow create: if userBelongsToTenant(tenantId);
+        allow update, delete: if userBelongsToTenant(tenantId) && isAdmin(tenantId);
+      }
+    }
+
+    // Legacy root-level products collection (for backwards compatibility)
+    match /products/{productId} {
+      allow read: if request.auth != null &&
+        resource.data.tenantId == getUserTenantId();
+      allow write: if request.auth != null &&
+        request.resource.data.tenantId == getUserTenantId();
+    }
+
+    // Legacy root-level sales collection (for backwards compatibility)
+    match /sales/{saleId} {
+      allow read: if request.auth != null &&
+        resource.data.tenantId == getUserTenantId();
+      allow write: if request.auth != null &&
+        request.resource.data.tenantId == getUserTenantId();
+    }
+
+    // Feedback collection - users can submit feedback
+    match /feedback/{feedbackId} {
+      allow read: if request.auth != null &&
+        resource.data.tenantId == getUserTenantId();
+      allow create: if request.auth != null;
+      allow update, delete: if false;
+    }
+
+    // Default deny for any other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

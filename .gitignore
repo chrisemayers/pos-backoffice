@@ -7,6 +7,10 @@
 
 # testing
 /coverage
+/playwright-report/
+/blob-report/
+/test-results/
+e2e/.auth/
 
 # next.js
 /.next/
@@ -27,6 +31,9 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+
+# Firebase service account (NEVER commit this!)
+scripts/service-account.json
 
 # vercel
 .vercel
