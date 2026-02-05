@@ -60,7 +60,6 @@ export async function fetchProducts(filters?: ProductFilters): Promise<Product[]
     }
 
     const snapshot = await getDocs(q);
-    console.log(`[Firestore] Fetched ${snapshot.docs.length} products from tenants/${TENANT_ID}/products`);
 
     const products = snapshot.docs.map((doc) => ({
       id: doc.id,
@@ -138,13 +137,9 @@ export async function createProduct(input: CreateProductInput): Promise<Product>
     tenant_id: TENANT_ID, // Android also stores this
   };
 
-  console.log(`[Firestore] Creating product in tenants/${TENANT_ID}/products:`, productData.name, `(id=${numericId})`);
-
   // Use the numeric ID as document ID for consistency with Android
   const docRef = doc(productsCollection(), String(numericId));
   await setDoc(docRef, productData);
-
-  console.log(`[Firestore] Product created with ID: ${numericId}`);
 
   return {
     id: String(numericId),
@@ -157,8 +152,8 @@ export async function createProduct(input: CreateProductInput): Promise<Product>
 
 // Update product
 export async function updateProduct(input: UpdateProductInput): Promise<void> {
-  const { id, ...data } = input;
-  const docRef = doc(productsCollection(), id);
+  const { id, imageFile, ...data } = input;
+  const docRef = doc(productsCollection(), String(id));
 
   const updateData: Record<string, unknown> = {
     ...data,

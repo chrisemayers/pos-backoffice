@@ -4,8 +4,8 @@ test.describe("Login Page", () => {
   test("should display login form", async ({ page }) => {
     await page.goto("/login");
 
-    // Check page title
-    await expect(page.locator("h2, [class*='title']")).toContainText("POS Back Office");
+    // Check page title - CardTitle uses data-slot attribute
+    await expect(page.locator('[data-slot="card-title"]')).toContainText("POS Back Office");
 
     // Check form elements exist
     await expect(page.locator('input[type="email"]')).toBeVisible();
@@ -19,8 +19,8 @@ test.describe("Login Page", () => {
     // Try to submit empty form
     await page.click('button[type="submit"]');
 
-    // Should show validation errors
-    await expect(page.locator("text=Invalid email")).toBeVisible({ timeout: 5000 });
+    // Should show validation errors - message is "Invalid email address" from zod schema
+    await expect(page.locator("text=Invalid email address")).toBeVisible({ timeout: 5000 });
   });
 
   test("should show error for invalid credentials", async ({ page }) => {

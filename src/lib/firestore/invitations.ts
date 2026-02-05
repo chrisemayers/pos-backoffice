@@ -59,9 +59,6 @@ export async function fetchInvitations(status?: InvitationStatus): Promise<Invit
     }
 
     const snapshot = await getDocs(q);
-    console.log(
-      `[Firestore] Fetched ${snapshot.docs.length} invitations from tenants/${TENANT_ID}/invitations`
-    );
 
     return snapshot.docs.map((doc) => ({
       id: doc.id,
@@ -136,15 +133,8 @@ export async function createInvitation(input: CreateInvitationInput): Promise<In
     createdAt: Timestamp.now(),
   };
 
-  console.log(
-    `[Firestore] Creating invitation in tenants/${TENANT_ID}/invitations:`,
-    invitationData.email
-  );
-
   const docRef = doc(invitationsCollection());
   await setDoc(docRef, invitationData);
-
-  console.log(`[Firestore] Invitation created with ID: ${docRef.id}`);
 
   return {
     id: docRef.id,

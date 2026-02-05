@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   LayoutDashboard,
   Package,
@@ -27,9 +28,12 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
+import { ProfileDialog } from "@/components/profile-dialog";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const mainNavItems = [
   {
@@ -93,6 +97,7 @@ const settingsNavItems = [
 export function AppSidebar() {
   const pathname = usePathname();
   const { user, signOut } = useAuth();
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
 
   const userInitials = user?.displayName
     ? user.displayName
@@ -172,22 +177,41 @@ export function AppSidebar() {
 
       <SidebarFooter className="border-t p-4">
         {user && (
-          <div className="mb-2 flex items-center gap-3 px-2">
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={user.photoURL || undefined} />
-              <AvatarFallback className="text-xs">{userInitials}</AvatarFallback>
-            </Avatar>
-            <div className="flex-1 overflow-hidden">
-              <p className="truncate text-sm font-medium">
-                {user.displayName || "User"}
-              </p>
-              <p className="truncate text-xs text-muted-foreground">
-                {user.email}
-              </p>
-            </div>
-          </div>
+          <>
+            <button
+              onClick={() => setProfileDialogOpen(true)}
+              className="mb-2 flex w-full items-center gap-3 rounded-md px-2 py-1 text-left transition-colors hover:bg-sidebar-accent"
+            >
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={user.photoURL || undefined} />
+                <AvatarFallback className="text-xs bg-sidebar-primary text-sidebar-primary-foreground">
+                  {userInitials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 overflow-hidden">
+                <p className="truncate text-sm font-medium text-sidebar-foreground">
+                  {user.displayName || "User"}
+                </p>
+                <p className="truncate text-xs text-sidebar-foreground/70">
+                  {user.email}
+                </p>
+              </div>
+            </button>
+
+            <ProfileDialog
+              user={user}
+              open={profileDialogOpen}
+              onOpenChange={setProfileDialogOpen}
+            />
+          </>
         )}
+
+        <SidebarSeparator className="my-2" />
+
         <SidebarMenu>
+          <SidebarMenuItem>
+            <ThemeToggle />
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
               <button className="w-full" onClick={signOut}>

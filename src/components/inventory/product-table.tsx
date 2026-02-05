@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   Table,
   TableBody,
@@ -17,7 +18,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Pencil, Trash2, RotateCcw, AlertTriangle } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, RotateCcw, AlertTriangle, Package } from "lucide-react";
 import type { Product } from "@/types";
 
 interface ProductTableProps {
@@ -54,6 +55,7 @@ export function ProductTable({
     <Table>
       <TableHeader>
         <TableRow>
+          <TableHead className="w-[60px]"></TableHead>
           <TableHead>Name</TableHead>
           <TableHead>Category</TableHead>
           <TableHead>Barcode</TableHead>
@@ -68,6 +70,20 @@ export function ProductTable({
 
           return (
             <TableRow key={product.id} className={product.isDeleted ? "opacity-60" : ""}>
+              <TableCell>
+                <div className="relative h-10 w-10 rounded-md overflow-hidden bg-muted flex items-center justify-center">
+                  {product.imageUrl ? (
+                    <Image
+                      src={product.imageUrl}
+                      alt={product.name}
+                      fill
+                      className="object-cover"
+                    />
+                  ) : (
+                    <Package className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </div>
+              </TableCell>
               <TableCell className="font-medium">
                 <div className="flex items-center gap-2">
                   {product.name}

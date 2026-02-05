@@ -30,6 +30,7 @@ export type CreateUserInput = {
   role: User["role"];
   permissions: string[];
   locationIds: string[];
+  defaultLocationId?: string;
 };
 
 // Fields that can be updated
@@ -72,9 +73,6 @@ export async function fetchUsers(filters?: UserFilters): Promise<User[]> {
     }
 
     const snapshot = await getDocs(q);
-    console.log(
-      `[Firestore] Fetched ${snapshot.docs.length} users from tenants/${TENANT_ID}/users`
-    );
 
     const users = snapshot.docs.map((doc) => ({
       id: doc.id,
@@ -149,16 +147,9 @@ export async function createUser(input: CreateUserInput): Promise<User> {
     updatedAt: Timestamp.now(),
   };
 
-  console.log(
-    `[Firestore] Creating user in tenants/${TENANT_ID}/users:`,
-    userData.email
-  );
-
   // Use a generated ID for the document
   const docRef = doc(usersCollection());
   await setDoc(docRef, userData);
-
-  console.log(`[Firestore] User created with ID: ${docRef.id}`);
 
   return {
     id: docRef.id,

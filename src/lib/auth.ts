@@ -2,12 +2,19 @@ import {
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   onAuthStateChanged,
+  updateProfile,
   User,
   GoogleAuthProvider,
   signInWithPopup,
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "./firebase";
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject,
+} from "firebase/storage";
+import { auth, db, storage } from "./firebase";
 
 const DEFAULT_TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID || "tenant_demo";
 
@@ -29,14 +36,11 @@ async function ensureUserDocument(user: User): Promise<void> {
         createdAt: serverTimestamp(),
         lastLogin: serverTimestamp(),
       });
-      console.log("[Auth] Created user document for", user.email);
     } else {
       // Update last login
       await setDoc(userRef, { lastLogin: serverTimestamp() }, { merge: true });
-      console.log("[Auth] Updated last login for", user.email);
     }
-  } catch (error) {
-    console.warn("[Auth] Could not create/update user document:", error);
+  } catch {
     // Don't throw - allow login to proceed even if user doc creation fails
   }
 }
@@ -84,4 +88,69 @@ export function getAuthErrorMessage(code: string): string {
     "auth/popup-closed-by-user": "Sign-in popup was closed",
   };
   return messages[code] || "An error occurred. Please try again";
+}
+
+// Update user display name
+export async function updateUserDisplayName(displayName: string): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error("No authenticated user");
+
+  await updateProfile(user, { displayName });
+
+  // Also update Firestore user document
+  const userRef = doc(db, "users", user.uid);
+  await setDoc(userRef, { displayName }, { merge: true });
+}
+
+// Upload and update user profile photo
+export async function updateUserPhoto(file: File): Promise<string> {
+  const user = auth.currentUser;
+  if (!user) throw new Error("No authenticated user");
+
+  // Delete old photo if exists
+  if (user.photoURL?.includes("firebasestorage")) {
+    try {
+      const oldPhotoRef = ref(storage, `profile-photos/${user.uid}`);
+      await deleteObject(oldPhotoRef);
+    } catch {
+      // Ignore if old photo doesn't exist
+    }
+  }
+
+  // Upload new photo
+  const photoRef = ref(storage, `profile-photos/${user.uid}`);
+  await uploadBytes(photoRef, file);
+  const photoURL = await getDownloadURL(photoRef);
+
+  // Update Firebase Auth profile
+  await updateProfile(user, { photoURL });
+
+  // Also update Firestore user document
+  const userRef = doc(db, "users", user.uid);
+  await setDoc(userRef, { photoURL }, { merge: true });
+
+  return photoURL;
+}
+
+// Remove user profile photo
+export async function removeUserPhoto(): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error("No authenticated user");
+
+  // Delete photo from storage if it's our storage
+  if (user.photoURL?.includes("firebasestorage")) {
+    try {
+      const photoRef = ref(storage, `profile-photos/${user.uid}`);
+      await deleteObject(photoRef);
+    } catch {
+      // Ignore if photo doesn't exist
+    }
+  }
+
+  // Update Firebase Auth profile
+  await updateProfile(user, { photoURL: null });
+
+  // Also update Firestore user document
+  const userRef = doc(db, "users", user.uid);
+  await setDoc(userRef, { photoURL: null }, { merge: true });
 }

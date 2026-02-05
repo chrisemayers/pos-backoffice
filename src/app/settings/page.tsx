@@ -6,8 +6,7 @@ import { Label } from "@/components/ui/label";
 import { BusinessInfoForm } from "@/components/settings/business-info-form";
 import { TaxSettingsForm } from "@/components/settings/tax-settings-form";
 import { PaymentMethodsForm } from "@/components/settings/payment-methods-form";
-import { GooglePayConfigForm } from "@/components/settings/google-pay-config-form";
-import { WiPayConfigForm } from "@/components/settings/wipay-config-form";
+import { PaymentConfigTabs } from "@/components/settings/payment-config-tabs";
 import { DefaultLocationForm } from "@/components/settings/default-location-form";
 import {
   useSettings,
@@ -17,6 +16,7 @@ import {
   useUpdateStockAlertSettings,
   useUpdateGooglePayConfig,
   useUpdateWiPayConfig,
+  useUpdateStripeConfig,
   useUpdateDefaultLocation,
 } from "@/hooks/use-settings";
 
@@ -29,6 +29,7 @@ export default function SettingsPage() {
   const stockAlertMutation = useUpdateStockAlertSettings();
   const googlePayMutation = useUpdateGooglePayConfig();
   const wipayMutation = useUpdateWiPayConfig();
+  const stripeMutation = useUpdateStripeConfig();
   const defaultLocationMutation = useUpdateDefaultLocation();
 
   if (isLoading) {
@@ -107,23 +108,24 @@ export default function SettingsPage() {
           isLoading={paymentMutation.isPending}
         />
 
-        {/* Google Pay Configuration */}
-        <GooglePayConfigForm
-          settings={settings}
-          onSubmit={async (data) => {
-            await googlePayMutation.mutateAsync(data);
-          }}
-          isLoading={googlePayMutation.isPending}
-        />
-
-        {/* WiPay Configuration */}
-        <WiPayConfigForm
-          settings={settings}
-          onSubmit={async (data) => {
-            await wipayMutation.mutateAsync(data);
-          }}
-          isLoading={wipayMutation.isPending}
-        />
+        {/* Payment Gateway Configuration - spans full width */}
+        <div className="lg:col-span-2">
+          <PaymentConfigTabs
+            settings={settings}
+            onStripeSubmit={async (data) => {
+              await stripeMutation.mutateAsync(data);
+            }}
+            onGooglePaySubmit={async (data) => {
+              await googlePayMutation.mutateAsync(data);
+            }}
+            onWiPaySubmit={async (data) => {
+              await wipayMutation.mutateAsync(data);
+            }}
+            isStripeLoading={stripeMutation.isPending}
+            isGooglePayLoading={googlePayMutation.isPending}
+            isWiPayLoading={wipayMutation.isPending}
+          />
+        </div>
 
         {/* Device Settings (Read-only - managed on POS device) */}
         <Card>

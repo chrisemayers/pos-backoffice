@@ -90,11 +90,6 @@ export async function logActivity(input: LogActivityInput): Promise<ActivityLog>
     timestamp: Timestamp.now(),
   };
 
-  console.log(
-    `[Firestore] Logging activity in tenants/${TENANT_ID}/activityLogs:`,
-    input.action
-  );
-
   const docRef = doc(activityLogCollection());
   await setDoc(docRef, activityData);
 
@@ -146,9 +141,6 @@ export async function fetchActivityLogs(
     }
 
     const snapshot = await getDocs(q);
-    console.log(
-      `[Firestore] Fetched ${snapshot.docs.length} activity logs from tenants/${TENANT_ID}/activityLogs`
-    );
 
     return snapshot.docs.map((doc) => ({
       id: doc.id,

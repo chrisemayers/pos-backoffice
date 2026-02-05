@@ -99,7 +99,8 @@ export default function EmployeesPage() {
       email: data.email,
       role: data.role,
       permissions: DEFAULT_ROLE_PERMISSIONS[data.role],
-      locationIds: [],
+      locationIds: data.defaultLocationId ? [data.defaultLocationId] : [],
+      defaultLocationId: data.defaultLocationId,
     });
     setIsCreating(false);
   };
@@ -110,6 +111,7 @@ export default function EmployeesPage() {
       id: editingUser.id,
       displayName: data.displayName,
       role: data.role,
+      defaultLocationId: data.defaultLocationId,
     });
     setEditingUser(null);
   };

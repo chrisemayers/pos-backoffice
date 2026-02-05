@@ -31,28 +31,18 @@ function backofficeSettingsDoc() {
 
 export async function fetchGlobalSettings(): Promise<GlobalSettings> {
   try {
-    console.log(
-      `[Firestore] Fetching global settings from tenants/${TENANT_ID}/settings/global`
-    );
     const snapshot = await getDoc(globalSettingsDoc());
 
     if (!snapshot.exists()) {
-      console.log(
-        "[Firestore] Global settings not found, creating defaults..."
-      );
       try {
         await setDoc(globalSettingsDoc(), defaultGlobalSettings);
-      } catch (createError) {
-        console.warn(
-          "[Firestore] Could not create default global settings:",
-          createError
-        );
+      } catch {
+        // Silently use defaults if we can't create the document
       }
       return defaultGlobalSettings;
     }
 
     const data = snapshot.data();
-    console.log("[Firestore] Global settings loaded successfully:", data);
     return { ...defaultGlobalSettings, ...data } as GlobalSettings;
   } catch (error) {
     console.error("[Firestore] Error fetching global settings:", error);
@@ -77,18 +67,13 @@ export async function updateGlobalSettings(
 
 export async function fetchAppSettings(): Promise<AppSettings> {
   try {
-    console.log(
-      `[Firestore] Fetching app settings from tenants/${TENANT_ID}/settings/app`
-    );
     const snapshot = await getDoc(appSettingsDoc());
 
     if (!snapshot.exists()) {
-      console.log("[Firestore] App settings not found, returning defaults");
       return defaultAppSettings;
     }
 
     const data = snapshot.data();
-    console.log("[Firestore] App settings loaded successfully:", data);
     return { ...defaultAppSettings, ...data } as AppSettings;
   } catch (error) {
     console.error("[Firestore] Error fetching app settings:", error);
@@ -103,28 +88,18 @@ export async function fetchAppSettings(): Promise<AppSettings> {
 
 export async function fetchBackofficeSettings(): Promise<BackofficeSettings> {
   try {
-    console.log(
-      `[Firestore] Fetching backoffice settings from tenants/${TENANT_ID}/settings/backoffice`
-    );
     const snapshot = await getDoc(backofficeSettingsDoc());
 
     if (!snapshot.exists()) {
-      console.log(
-        "[Firestore] Backoffice settings not found, creating defaults..."
-      );
       try {
         await setDoc(backofficeSettingsDoc(), defaultBackofficeSettings);
-      } catch (createError) {
-        console.warn(
-          "[Firestore] Could not create default backoffice settings:",
-          createError
-        );
+      } catch {
+        // Silently use defaults if we can't create the document
       }
       return defaultBackofficeSettings;
     }
 
     const data = snapshot.data();
-    console.log("[Firestore] Backoffice settings loaded successfully:", data);
     return { ...defaultBackofficeSettings, ...data } as BackofficeSettings;
   } catch (error) {
     console.error("[Firestore] Error fetching backoffice settings:", error);
@@ -179,6 +154,7 @@ export async function updateSettings(settings: Partial<Settings>): Promise<void>
     "gpayGatewayParamsJson",
     "wipayPublicKey",
     "wipaySecretKey",
+    "stripePublishableKey",
   ];
 
   const globalUpdates: Partial<GlobalSettings> = {};
@@ -225,10 +201,7 @@ export async function updateReceiptSettings(receipt: {
   printerEnabled: boolean;
 }): Promise<void> {
   // These are app settings - backoffice can view but not edit
-  // If editing is needed in the future, update appSettingsDoc
-  console.warn(
-    "[Settings] Receipt/printer settings are managed by the mobile app"
-  );
+  // No-op: receipt/printer settings are managed by the mobile app
 }
 
 export async function updateStockAlertSettings(
@@ -253,11 +226,19 @@ export interface WiPayConfig {
   wipaySecretKey?: string;
 }
 
+export interface StripeConfig {
+  stripePublishableKey?: string;
+}
+
 export async function updateGooglePayConfig(config: GooglePayConfig): Promise<void> {
   await updateGlobalSettings(config);
 }
 
 export async function updateWiPayConfig(config: WiPayConfig): Promise<void> {
+  await updateGlobalSettings(config);
+}
+
+export async function updateStripeConfig(config: StripeConfig): Promise<void> {
   await updateGlobalSettings(config);
 }
 

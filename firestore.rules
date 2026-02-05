@@ -12,22 +12,18 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Helper function to get user's tenant ID (with fallback for development)
+    // Helper function to get user's tenant ID from their profile
     function getUserTenantId() {
       let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
       return userDoc.data.tenantId;
     }
 
     // Helper function to check if user belongs to tenant
-    // For development: allows access to 'tenant_demo' for any authenticated user
+    // Validates that the authenticated user has a profile and belongs to the specified tenant
     function userBelongsToTenant(tenantId) {
-      return request.auth != null && (
-        // Development mode: allow any authenticated user to access tenant_demo
-        tenantId == 'tenant_demo' ||
-        // Production mode: check user's tenant membership
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-         getUserTenantId() == tenantId)
-      );
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        getUserTenantId() == tenantId;
     }
 
     // Helper function to get a user's role from the tenant users collection

@@ -28,8 +28,6 @@ export interface ReturnFilters {
 
 // Fetch returns with optional filters
 export async function fetchReturns(filters?: ReturnFilters): Promise<Return[]> {
-  console.log("[Firestore] Fetching returns from tenants/" + TENANT_ID + "/returns");
-
   const constraints: any[] = [orderBy("timestamp", "desc")];
 
   // Add date filters if provided
@@ -43,8 +41,6 @@ export async function fetchReturns(filters?: ReturnFilters): Promise<Return[]> {
 
   const q = query(returnsCollection(), ...constraints);
   const snapshot = await getDocs(q);
-
-  console.log(`[Firestore] Fetched ${snapshot.docs.length} returns`);
 
   let returns = snapshot.docs.map((doc) => {
     const data = doc.data();

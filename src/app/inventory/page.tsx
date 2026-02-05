@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Plus, Search, Filter, Archive, Package } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +31,7 @@ import {
   useDeleteProduct,
   useRestoreProduct,
 } from "@/hooks/use-products";
+import { uploadProductImage } from "@/lib/storage/products";
 import type { Product } from "@/types";
 
 export default function InventoryPage() {
@@ -39,6 +41,7 @@ export default function InventoryPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [activeTab, setActiveTab] = useState("active");
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   // Queries
   const { data: products = [], isLoading } = useProducts({
@@ -69,21 +72,74 @@ export default function InventoryPage() {
   const totalValue = activeProducts.reduce((sum, p) => sum + p.price * p.stock, 0);
 
   const handleCreate = async (data: ProductFormSubmitData) => {
-    await createMutation.mutateAsync({
-      ...data,
-      priceCents: Math.round(data.price * 100),
-    });
-    setIsCreating(false);
+    try {
+      // First create the product to get the ID
+      const { imageFile, ...productData } = data;
+      const product = await createMutation.mutateAsync({
+        ...productData,
+        priceCents: Math.round(data.price * 100),
+      });
+
+      // If there's an image file, upload it and update the product
+      if (data.imageFile) {
+        setIsUploadingImage(true);
+        try {
+          const imageUrl = await uploadProductImage(data.imageFile, product.id);
+          await updateMutation.mutateAsync({
+            id: product.id,
+            imageUrl,
+          });
+          toast.success("Product created with image");
+        } catch (uploadError) {
+          console.error("Image upload failed:", uploadError);
+          toast.error("Product created, but image upload failed. Please try uploading the image again.");
+        } finally {
+          setIsUploadingImage(false);
+        }
+      } else {
+        toast.success("Product created");
+      }
+
+      setIsCreating(false);
+    } catch (error) {
+      console.error("Failed to create product:", error);
+      toast.error("Failed to create product");
+    }
   };
 
   const handleUpdate = async (data: ProductFormSubmitData) => {
     if (!editingProduct) return;
-    await updateMutation.mutateAsync({
-      ...data,
-      priceCents: Math.round(data.price * 100),
-      id: editingProduct.id,
-    });
-    setEditingProduct(null);
+
+    try {
+      let imageUrl = data.imageUrl;
+
+      // If there's a new image file, upload it
+      if (data.imageFile) {
+        setIsUploadingImage(true);
+        try {
+          imageUrl = await uploadProductImage(data.imageFile, editingProduct.id);
+        } catch (uploadError) {
+          console.error("Image upload failed:", uploadError);
+          toast.error("Image upload failed. Please try again.");
+          setIsUploadingImage(false);
+          return;
+        }
+        setIsUploadingImage(false);
+      }
+
+      const { imageFile: _, ...productData } = data;
+      await updateMutation.mutateAsync({
+        ...productData,
+        priceCents: Math.round(data.price * 100),
+        id: editingProduct.id,
+        imageUrl,
+      });
+      toast.success("Product updated");
+      setEditingProduct(null);
+    } catch (error) {
+      console.error("Failed to update product:", error);
+      toast.error("Failed to update product");
+    }
   };
 
   const handleDelete = async (product: Product) => {
@@ -242,7 +298,7 @@ export default function InventoryPage() {
           <ProductForm
             onSubmit={handleCreate}
             onCancel={() => setIsCreating(false)}
-            isLoading={createMutation.isPending}
+            isLoading={createMutation.isPending || isUploadingImage}
           />
         </DialogContent>
       </Dialog>
@@ -258,7 +314,7 @@ export default function InventoryPage() {
               product={editingProduct}
               onSubmit={handleUpdate}
               onCancel={() => setEditingProduct(null)}
-              isLoading={updateMutation.isPending}
+              isLoading={updateMutation.isPending || isUploadingImage}
             />
           )}
         </DialogContent>

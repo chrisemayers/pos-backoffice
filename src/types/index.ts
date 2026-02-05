@@ -10,6 +10,7 @@ export interface Product {
   category: string;
   stockAlertLevel: number;
   isDeleted: boolean;
+  imageUrl?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -88,6 +89,8 @@ export interface GlobalSettings {
   // WiPay configuration
   wipayPublicKey?: string;
   wipaySecretKey?: string;
+  // Stripe configuration
+  stripePublishableKey?: string;
 }
 
 export interface AppSettings {
@@ -127,6 +130,7 @@ export const defaultGlobalSettings: GlobalSettings = {
   gpayGatewayParamsJson: "",
   wipayPublicKey: "",
   wipaySecretKey: "",
+  stripePublishableKey: "",
 };
 
 export const defaultAppSettings: AppSettings = {
@@ -142,6 +146,7 @@ export interface User {
   id: string;
   tenantId: string;
   locationIds: string[];
+  defaultLocationId?: string; // Used by Android app to determine active location
   email: string;
   displayName: string;
   role: 'admin' | 'manager' | 'cashier';

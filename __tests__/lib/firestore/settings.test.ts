@@ -239,20 +239,19 @@ describe("Firestore Settings Service", () => {
   });
 
   describe("updateReceiptSettings", () => {
-    it("should log a warning since receipt settings are managed by mobile app", async () => {
-      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    it("should be a no-op since receipt settings are managed by mobile app", async () => {
+      // Receipt settings are managed by the mobile app, so this function
+      // intentionally does nothing - it's a silent no-op
+      await expect(
+        updateReceiptSettings({
+          receiptSharingEnabled: false,
+          printerEnabled: true,
+        })
+      ).resolves.toBeUndefined();
 
-      await updateReceiptSettings({
-        receiptSharingEnabled: false,
-        printerEnabled: true,
-      });
-
-      // Receipt settings are now app-only, so this should just warn
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Receipt/printer settings are managed by the mobile app")
-      );
-
-      consoleSpy.mockRestore();
+      // Verify no Firestore operations were attempted
+      expect(vi.mocked(updateDoc)).not.toHaveBeenCalled();
+      expect(vi.mocked(setDoc)).not.toHaveBeenCalled();
     });
   });
 

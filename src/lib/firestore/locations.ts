@@ -53,9 +53,6 @@ export async function fetchLocations(filters?: LocationFilters): Promise<Locatio
     }
 
     const snapshot = await getDocs(q);
-    console.log(
-      `[Firestore] Fetched ${snapshot.docs.length} locations from tenants/${TENANT_ID}/locations`
-    );
 
     const locations = snapshot.docs.map((doc) => ({
       id: doc.id,
@@ -105,15 +102,8 @@ export async function createLocation(input: CreateLocationInput): Promise<Locati
     updatedAt: Timestamp.now(),
   };
 
-  console.log(
-    `[Firestore] Creating location in tenants/${TENANT_ID}/locations:`,
-    locationData.name
-  );
-
   const docRef = doc(locationsCollection());
   await setDoc(docRef, locationData);
-
-  console.log(`[Firestore] Location created with ID: ${docRef.id}`);
 
   return {
     id: docRef.id,

@@ -264,6 +264,156 @@ For self-hosted deployments:
    docker run -p 3000:3000 --env-file .env.production pos-backoffice
    ```
 
+### Option 4: Self-Hosted with GitHub Actions
+
+For automated deployment to your own Linux server.
+
+#### Prerequisites
+
+- Linux server with nginx and Let's Encrypt
+- Node.js 20+ installed
+- PM2 for process management
+- SSH access with deploy key
+
+#### One-Time Server Setup
+
+**1. DNS Configuration**
+
+Add an A record pointing your subdomain to your server:
+```
+web.pos.yourdomain.com  →  A record → your-server-ip
+```
+
+**2. SSL Certificate**
+```bash
+sudo certbot certonly --nginx -d web.pos.yourdomain.com
+```
+
+**3. Create App Directory**
+```bash
+sudo mkdir -p /opt/pos-backoffice
+sudo chown $USER:$USER /opt/pos-backoffice
+```
+
+**4. Install PM2**
+```bash
+npm install -g pm2
+pm2 startup  # Follow instructions to enable auto-start on reboot
+```
+
+**5. Nginx Configuration**
+
+Create `/etc/nginx/sites-available/pos-backoffice`:
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name web.pos.yourdomain.com;
+
+    ssl_certificate /etc/letsencrypt/live/web.pos.yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/web.pos.yourdomain.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+
+server {
+    listen 80;
+    server_name web.pos.yourdomain.com;
+    return 301 https://$server_name$request_uri;
+}
+```
+
+Enable the site:
+```bash
+sudo ln -s /etc/nginx/sites-available/pos-backoffice /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+**6. Environment File**
+
+Create `/opt/pos-backoffice/.env.local` with your production values:
+```env
+NEXT_PUBLIC_FIREBASE_API_KEY=your-production-key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
+NEXT_PUBLIC_FIREBASE_APP_ID=your-app-id
+NEXT_PUBLIC_TENANT_ID=your-tenant-id
+NEXT_PUBLIC_APP_URL=https://web.pos.yourdomain.com
+RESEND_API_KEY=your-resend-key
+EMAIL_FROM=noreply@yourdomain.com
+```
+
+#### GitHub Secrets Configuration
+
+Go to your repository → Settings → Secrets and variables → Actions → New repository secret:
+
+| Secret | Value |
+|--------|-------|
+| `SSH_PRIVATE_KEY` | Your deploy key private key (see below) |
+| `SERVER_HOST` | Your server IP or hostname |
+| `SERVER_USER` | SSH username for deployment |
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase API key |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase auth domain |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase project ID |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Firebase storage bucket |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase sender ID |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase app ID |
+| `NEXT_PUBLIC_TENANT_ID` | Your tenant ID |
+| `NEXT_PUBLIC_APP_URL` | `https://web.pos.yourdomain.com` |
+
+#### Retrieving Your Existing Deploy Key
+
+If you already have a deploy key set up for your server:
+
+```bash
+# List SSH keys to find your deploy key
+ls -la ~/.ssh/
+
+# Common deploy key filenames: id_ed25519, id_rsa, deploy, deploy_key
+
+# View the private key content (copy entire output for SSH_PRIVATE_KEY secret)
+cat ~/.ssh/your_deploy_key
+
+# Verify the public key is authorized on the server
+cat ~/.ssh/your_deploy_key.pub
+
+# Test the connection
+ssh -i ~/.ssh/your_deploy_key user@your-server "echo 'Connection successful'"
+```
+
+Copy the **entire** private key content, including the `-----BEGIN` and `-----END` lines.
+
+#### Deployment Workflow
+
+The GitHub Actions workflow (`.github/workflows/deploy.yml`) runs automatically on every push to `main`:
+
+1. **Checkout** - Pulls the latest code
+2. **Setup Node.js** - Installs Node.js 20
+3. **Install dependencies** - Runs `npm ci`
+4. **Run tests** - Executes `npm run test:run` (fails deployment if tests fail)
+5. **Build** - Creates production build with `npm run build`
+6. **Deploy** - Copies built files to server via SSH
+7. **Restart** - Restarts the application with PM2
+
+You can also trigger a deployment manually from the GitHub Actions tab → "Run workflow".
+
+#### Firebase Auth Configuration
+
+Add your domain to Firebase Auth authorized domains:
+1. Go to Firebase Console → Authentication → Settings → Authorized domains
+2. Add `web.pos.yourdomain.com`
+
 ---
 
 ## Post-Deployment Verification

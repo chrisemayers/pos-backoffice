@@ -13,12 +13,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useLocations } from "@/hooks/use-locations";
 import type { User } from "@/types";
 
 const userSchema = z.object({
   displayName: z.string().min(1, "Name is required"),
   email: z.string().email("Invalid email address"),
   role: z.enum(["admin", "manager", "cashier"]),
+  defaultLocationId: z.string().optional(),
 });
 
 type UserFormData = z.infer<typeof userSchema>;
@@ -27,6 +29,7 @@ export interface UserFormSubmitData {
   displayName: string;
   email: string;
   role: User["role"];
+  defaultLocationId?: string;
 }
 
 interface UserFormProps {
@@ -37,6 +40,8 @@ interface UserFormProps {
 }
 
 export function UserForm({ user, onSubmit, onCancel, isLoading }: UserFormProps) {
+  const { data: locations = [] } = useLocations({ isActive: true });
+
   const {
     register,
     handleSubmit,
@@ -50,16 +55,19 @@ export function UserForm({ user, onSubmit, onCancel, isLoading }: UserFormProps)
       displayName: user?.displayName ?? "",
       email: user?.email ?? "",
       role: user?.role ?? "cashier",
+      defaultLocationId: user?.defaultLocationId ?? "",
     },
   });
 
   const currentRole = watch("role");
+  const currentDefaultLocation = watch("defaultLocationId");
 
   const handleFormSubmit = (data: UserFormData) => {
     onSubmit({
       displayName: data.displayName,
       email: data.email,
       role: data.role,
+      defaultLocationId: data.defaultLocationId || undefined,
     });
   };
 
@@ -135,6 +143,31 @@ export function UserForm({ user, onSubmit, onCancel, isLoading }: UserFormProps)
         {errors.role && (
           <p className="text-sm text-red-500">{errors.role.message}</p>
         )}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="defaultLocationId">Default Location (for POS App)</Label>
+        <Select
+          value={currentDefaultLocation || ""}
+          onValueChange={(value) => setValue("defaultLocationId", value === "none" ? "" : value)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select a default location" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">
+              <span className="text-muted-foreground">No default location</span>
+            </SelectItem>
+            {locations.map((location) => (
+              <SelectItem key={location.id} value={location.id}>
+                {location.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          This location will be used by the Android POS app for this user&apos;s sessions
+        </p>
       </div>
 
       <div className="flex justify-end gap-2 pt-4">

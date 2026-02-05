@@ -19,7 +19,8 @@
  *     --email="user@example.com" \
  *     --password="securepassword" \
  *     --tenant="tenant_demo" \
- *     --role="admin"
+ *     --role="admin" \
+ *     --location="location_id"
  *
  * Arguments:
  *   --email     User's email address (required)
@@ -27,6 +28,7 @@
  *   --tenant    Tenant ID to associate with (default: tenant_demo)
  *   --role      User role: admin, manager, or cashier (default: cashier)
  *   --name      Display name (optional)
+ *   --location  Default location ID for POS app (optional, falls back to tenant settings)
  */
 
 import { initializeApp, cert } from 'firebase-admin/app';
@@ -80,6 +82,7 @@ async function main() {
   const tenantId = args.tenant || 'tenant_demo';
   const role = args.role || 'cashier';
   const displayName = args.name || email.split('@')[0];
+  const defaultLocationId = args.location || null;
 
   // Check for service account file
   const serviceAccountPath = join(__dirname, 'service-account.json');
@@ -109,6 +112,7 @@ async function main() {
   console.log(`Tenant:   ${tenantId}`);
   console.log(`Role:     ${role}`);
   console.log(`Name:     ${displayName}`);
+  console.log(`Location: ${defaultLocationId || '(uses tenant default)'}`);
   console.log('');
 
   try {
@@ -133,10 +137,81 @@ async function main() {
       }
     }
 
-    // Step 2: Create/update user profile in Firestore
-    console.log('2️⃣  Creating Firestore user profile...');
-    const userRef = db.collection('users').doc(userRecord.uid);
-    await userRef.set({
+    // Step 2: Create/update user profile in tenant's users collection
+    // This is where the web app looks for users (tenants/{tenantId}/users)
+    console.log('2️⃣  Creating Firestore user profile in tenant...');
+
+    // Define permissions based on role
+    const PERMISSIONS = {
+      INVENTORY_VIEW: "inventory:view",
+      INVENTORY_CREATE: "inventory:create",
+      INVENTORY_EDIT: "inventory:edit",
+      INVENTORY_DELETE: "inventory:delete",
+      SALES_VIEW: "sales:view",
+      SALES_VOID: "sales:void",
+      SALES_REFUND: "sales:refund",
+      REPORTS_VIEW: "reports:view",
+      REPORTS_EXPORT: "reports:export",
+      SETTINGS_VIEW: "settings:view",
+      SETTINGS_EDIT: "settings:edit",
+      USERS_VIEW: "users:view",
+      USERS_CREATE: "users:create",
+      USERS_EDIT: "users:edit",
+      USERS_DELETE: "users:delete",
+      LOCATIONS_VIEW: "locations:view",
+      LOCATIONS_CREATE: "locations:create",
+      LOCATIONS_EDIT: "locations:edit",
+      LOCATIONS_DELETE: "locations:delete",
+    };
+
+    const DEFAULT_ROLE_PERMISSIONS = {
+      admin: Object.values(PERMISSIONS),
+      manager: [
+        PERMISSIONS.INVENTORY_VIEW,
+        PERMISSIONS.INVENTORY_CREATE,
+        PERMISSIONS.INVENTORY_EDIT,
+        PERMISSIONS.SALES_VIEW,
+        PERMISSIONS.SALES_VOID,
+        PERMISSIONS.SALES_REFUND,
+        PERMISSIONS.REPORTS_VIEW,
+        PERMISSIONS.REPORTS_EXPORT,
+        PERMISSIONS.SETTINGS_VIEW,
+        PERMISSIONS.USERS_VIEW,
+        PERMISSIONS.LOCATIONS_VIEW,
+      ],
+      cashier: [
+        PERMISSIONS.INVENTORY_VIEW,
+        PERMISSIONS.SALES_VIEW,
+        PERMISSIONS.REPORTS_VIEW,
+      ],
+    };
+
+    const permissions = DEFAULT_ROLE_PERMISSIONS[role] || [];
+
+    // Create in tenant's users collection (where the web app looks)
+    const tenantUserRef = db.collection('tenants').doc(tenantId).collection('users').doc(userRecord.uid);
+    const tenantUserData = {
+      email,
+      displayName,
+      tenantId,
+      role,
+      permissions,
+      locationIds: defaultLocationId ? [defaultLocationId] : [],
+      isActive: true,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp()
+    };
+    // Only include defaultLocationId if provided
+    if (defaultLocationId) {
+      tenantUserData.defaultLocationId = defaultLocationId;
+    }
+    await tenantUserRef.set(tenantUserData, { merge: true });
+    console.log(`   ✅ Created user profile at tenants/${tenantId}/users/${userRecord.uid}`);
+
+    // Step 3: Also create in root users collection (for Android app)
+    console.log('3️⃣  Creating root user profile (Android app)...');
+    const rootUserRef = db.collection('users').doc(userRecord.uid);
+    const rootUserData = {
       email,
       displayName,
       tenantId,
@@ -144,17 +219,13 @@ async function main() {
       isActive: true,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp()
-    }, { merge: true });
-    console.log('   ✅ Created user profile at users/' + userRecord.uid);
-
-    // Step 3: Add user to tenant members collection
-    console.log('3️⃣  Adding user to tenant members...');
-    const memberRef = db.collection('tenants').doc(tenantId).collection('members').doc(userRecord.uid);
-    await memberRef.set({
-      role,
-      joinedAt: FieldValue.serverTimestamp()
-    }, { merge: true });
-    console.log(`   ✅ Added to tenants/${tenantId}/members/${userRecord.uid}`);
+    };
+    // Only include defaultLocationId if provided
+    if (defaultLocationId) {
+      rootUserData.defaultLocationId = defaultLocationId;
+    }
+    await rootUserRef.set(rootUserData, { merge: true });
+    console.log(`   ✅ Created user profile at users/${userRecord.uid}`);
 
     // Step 4: Ensure tenant document exists
     console.log('4️⃣  Ensuring tenant document exists...');

@@ -1,11 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ImageUpload } from "@/components/ui/image-upload";
 import { useCategories } from "@/hooks/use-products";
 import type { Product } from "@/types";
 
@@ -28,6 +30,8 @@ export interface ProductFormSubmitData {
   barcode?: string;
   stockAlertLevel: number;
   isDeleted: boolean;
+  imageUrl?: string;
+  imageFile?: File;
 }
 
 interface ProductFormProps {
@@ -39,6 +43,8 @@ interface ProductFormProps {
 
 export function ProductForm({ product, onSubmit, onCancel, isLoading }: ProductFormProps) {
   const { data: existingCategories = [] } = useCategories();
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | undefined>(product?.imageUrl);
 
   const {
     register,
@@ -57,6 +63,13 @@ export function ProductForm({ product, onSubmit, onCancel, isLoading }: ProductF
     },
   });
 
+  const handleImageChange = (file: File | null) => {
+    setImageFile(file);
+    if (!file) {
+      setImageUrl(undefined);
+    }
+  };
+
   const handleFormSubmit = (data: ProductFormData) => {
     onSubmit({
       name: data.name,
@@ -66,15 +79,31 @@ export function ProductForm({ product, onSubmit, onCancel, isLoading }: ProductF
       barcode: data.barcode || undefined,
       stockAlertLevel: data.stockAlertLevel,
       isDeleted: product?.isDeleted ?? false,
+      imageUrl: imageUrl,
+      imageFile: imageFile || undefined,
     });
   };
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="name">Product Name *</Label>
-        <Input id="name" {...register("name")} placeholder="Enter product name" />
-        {errors.name && <p className="text-sm text-red-500">{errors.name.message}</p>}
+      <div className="flex gap-4">
+        <div className="space-y-2">
+          <Label>Product Image</Label>
+          <ImageUpload
+            value={imageUrl}
+            onChange={handleImageChange}
+            onRemove={() => setImageUrl(undefined)}
+            disabled={isLoading}
+          />
+        </div>
+
+        <div className="flex-1 space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Product Name *</Label>
+            <Input id="name" {...register("name")} placeholder="Enter product name" />
+            {errors.name && <p className="text-sm text-red-500">{errors.name.message}</p>}
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">

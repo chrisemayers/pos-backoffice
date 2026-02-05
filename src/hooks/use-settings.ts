@@ -11,9 +11,11 @@ import {
   updateStockAlertSettings,
   updateGooglePayConfig,
   updateWiPayConfig,
+  updateStripeConfig,
   updateDefaultLocation,
   type GooglePayConfig,
   type WiPayConfig,
+  type StripeConfig,
 } from "@/lib/firestore/settings";
 import type { Settings } from "@/types";
 
@@ -173,6 +175,31 @@ export function useUpdateWiPayConfig() {
 
   return useMutation({
     mutationFn: (config: WiPayConfig) => updateWiPayConfig(config),
+    onMutate: async (newConfig) => {
+      await queryClient.cancelQueries({ queryKey: settingsKeys.all });
+      const previous = queryClient.getQueryData<Settings>(settingsKeys.all);
+      queryClient.setQueryData<Settings>(settingsKeys.all, (old) =>
+        old ? { ...old, ...newConfig } : undefined
+      );
+      return { previous };
+    },
+    onError: (_err, _newConfig, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(settingsKeys.all, context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: settingsKeys.all });
+    },
+  });
+}
+
+// Update Stripe configuration
+export function useUpdateStripeConfig() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (config: StripeConfig) => updateStripeConfig(config),
     onMutate: async (newConfig) => {
       await queryClient.cancelQueries({ queryKey: settingsKeys.all });
       const previous = queryClient.getQueryData<Settings>(settingsKeys.all);
